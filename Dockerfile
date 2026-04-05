@@ -1,20 +1,21 @@
 FROM node:18
 
-# Installation des outils de compilation pour SQLite
+# 1. Installation des outils de compilation pour SQLite
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Installation des dépendances backend
+# 2. On prépare le dossier backend séparément
 COPY backend/package*.json ./backend/
 WORKDIR /app/backend
-RUN npm install && npm rebuild better-sqlite3
+RUN npm install
 
-# Copie de tout le projet
+# 3. On copie le reste du code SANS écraser les modules
 WORKDIR /app
-COPY . .
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
 
-# Lancement
+# 4. Lancement depuis le bon dossier
 WORKDIR /app/backend
 EXPOSE 5000
 CMD ["node", "server.js"]
