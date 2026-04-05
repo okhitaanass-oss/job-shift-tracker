@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Shift Tracker | Déclarer un Changement</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #030712;
+            --card: #0f172a;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+
+        .form-card {
+            background: var(--card); padding: 40px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 500px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 10px; }
+        p { color: var(--text-muted); margin-bottom: 30px; font-size: 0.95rem; }
+
+        .input-group { margin-bottom: 25px; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 10px; }
+        
+        input {
+            width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; color: white; font-size: 1rem; box-sizing: border-box; transition: 0.3s;
+        }
+        input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.08); }
+
+        .btn {
+            width: 100%; padding: 18px; background: white; color: black; border: none; border-radius: 12px; font-weight: 800; font-size: 1.1rem; cursor: pointer; transition: 0.3s; margin-top: 10px;
+        }
+        .btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(255,255,255,0.2); }
+
+        .ia-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(56, 189, 248, 0.1); color: var(--accent); padding: 6px 12px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; margin-bottom: 20px; font-family: 'JetBrains Mono'; }
+    </style>
+</head>
+<body>
+    <div class="form-card">
+        <div class="ia-badge">✨ AUTO-DETECTION IA ACTIVE</div>
+        <h2>Déclarez votre Nouveau Poste</h2>
+        <p>Aidez les recruteurs à savoir que votre ancien poste est désormais libre.</p>
+
+        <form id="shift-form">
+            <div class="input-group">
+                <label>Analyse Rapide (Collez votre post LinkedIn ici) ✨</label>
+                <textarea id="ia-input" placeholder="Ex: Je suis ravi d'annoncer que je quitte Google pour rejoindre OpenAI en tant que Tech Lead..." style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; color: white; font-size: 0.9rem; font-family: 'Inter', sans-serif; height: 80px; resize: none;"></textarea>
+                <button type="button" id="btn-ia" style="background: var(--accent); color: black; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.8rem; margin-top: 10px; cursor: pointer; transition: 0.3s;">Scanner avec l'IA</button>
+            </div>
+
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05); margin:20px 0;">
+
+            <div class="input-group">
+                <label>Ancien Poste (Poste Libéré)</label>
+                <input type="text" id="old-title" placeholder="Ex: Senior Software Engineer" required>
+            </div>
+
+            <div class="input-group">
+                <label>Ancienne Entreprise</label>
+                <input type="text" id="old-company" placeholder="Ex: Google France" required>
+            </div>
+
+            <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05); margin:30px 0;">
+
+            <div class="input-group">
+                <label>Nouveau Poste</label>
+                <input type="text" id="new-title" placeholder="Ex: Tech Lead" required>
+            </div>
+
+            <div class="input-group">
+                <label>Nouvelle Entreprise</label>
+                <input type="text" id="new-company" placeholder="Ex: OpenAI" required>
+            </div>
+
+            <button type="submit" class="btn">Valider le Changement</button>
+        </form>
+    </div>
+
+    <script>
+        // Détection auto de l'URL du serveur (Local vs Prod)
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : 'https://votre-backend-sur-render.com'; // À changer après le déploiement sur Render
+
+        // Module IA Auto-Fill
+        document.getElementById('btn-ia').onclick = async () => {
+            const text = document.getElementById('ia-input').value;
+            if(!text) return alert("Veuillez coller un texte à analyser.");
+            
+            const btn = document.getElementById('btn-ia');
+            btn.innerText = "Analyse IA...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/api/ia-analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await response.json();
+                
+                // Remplissage automatique
+                document.getElementById('old-title').value = data.oldJobTitle;
+                document.getElementById('old-company').value = data.oldCompany;
+                document.getElementById('new-title').value = data.newTitle;
+                document.getElementById('new-company').value = data.newCompany;
+                
+                alert("Analyse terminée ! Les champs ont été remplis automatiquement.");
+            } catch (err) {
+                alert("Erreur lors de l'analyse IA.");
+            } finally {
+                btn.innerText = "Scanner avec l'IA";
+                btn.disabled = false;
+            }
+        };
+
+        document.getElementById('shift-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.innerText = "Traitement IA...";
+            btn.disabled = true;
+            btn.style.opacity = "0.7";
+            
+            const payload = {
+                userId: "Utilisateur_Test",
+                newTitle: document.getElementById('new-title').value,
+                newCompany: document.getElementById('new-company').value,
+                oldJobTitle: document.getElementById('old-title').value,
+                oldCompany: document.getElementById('old-company').value
+            };
+
+            try {
+                // Appel au backend réel (Local ou Cloud)
+                const response = await fetch(`${API_URL}/api/release-job`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert("Succès ! Votre changement a été enregistré et les recruteurs ont été notifiés en temps réel.");
+                    e.target.reset();
+                } else {
+                    alert("Erreur : " + result.error);
+                }
+            } catch (error) {
+                console.error("Erreur de connexion au serveur:", error);
+                alert("Impossible de contacter le serveur. Assurez-vous que le backend est lancé.");
+            } finally {
+                btn.innerText = "Valider le Changement";
+                btn.disabled = false;
+                btn.style.opacity = "1";
+            }
+        };
+    </script>
+</body>
+</html>

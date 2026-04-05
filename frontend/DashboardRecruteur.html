@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Shift Tracker | Dashboard Recruteur</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --urgent: #ef4444;
+            --success: #10b981;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; }
+        h1 { font-size: 1.8rem; font-weight: 800; background: linear-gradient(90deg, var(--accent), #8b5cf6); -webkit-background-clip: text; color: transparent; }
+        
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+        .stat-card { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--accent); margin-bottom: 5px; }
+        .stat-label { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        .feed-container { display: grid; grid-template-columns: 2fr 1fr; gap: 30px; }
+        
+        .live-feed { background: var(--card); border-radius: 16px; padding: 30px; border: 1px solid rgba(255,255,255,0.1); }
+        .feed-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .status-dot { width: 10px; height: 10px; background: var(--success); border-radius: 50%; box-shadow: 0 0 10px var(--success); display: inline-block; margin-right: 10px; }
+
+        .job-card { background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-bottom: 15px; position: relative; overflow: hidden; transition: 0.3s; opacity: 0; transform: translateY(20px); animation: slideUp 0.5s forwards; }
+        .job-card:hover { border-color: var(--accent); transform: scale(1.02); }
+        
+        .job-card.urgent { border-left: 4px solid var(--urgent); }
+        
+        .job-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 5px; }
+        .job-company { color: var(--accent); font-family: 'JetBrains Mono'; font-size: 0.9rem; margin-bottom: 15px; }
+        
+        .tag { background: rgba(56, 189, 248, 0.1); color: var(--accent); padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-right: 10px; }
+        .tag-urgent { background: rgba(239, 68, 68, 0.1); color: var(--urgent); }
+
+        .sidebar { background: rgba(30, 41, 59, 0.5); border-radius: 16px; padding: 25px; height: fit-content; }
+        .sidebar h3 { margin-top: 0; font-size: 1rem; color: var(--text-muted); text-transform: uppercase; }
+
+        @keyframes slideUp { to { opacity: 1; transform: translateY(0); } }
+        
+        .notification-toast { position: fixed; bottom: 30px; right: 30px; background: var(--urgent); color: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: none; z-index: 1000; animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes bounceIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <!-- MODAL DE CONNEXION -->
+    <div id="login-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:10000; display:flex; justify-content:center; align-items:center;">
+        <div style="background:var(--card); padding:40px; border-radius:24px; border:1px solid var(--accent); width:350px;">
+            <h2 style="margin-top:0;">Accès Recruteur</h2>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:25px;">Connectez-vous pour voir les opportunités en temps réel.</p>
+            <input type="email" id="login-email" placeholder="Email" style="width:100%; padding:12px; margin-bottom:15px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:white;">
+            <input type="password" id="login-pass" placeholder="Mot de passe" style="width:100%; padding:12px; margin-bottom:25px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:white;">
+            <button id="btn-login" style="width:100%; padding:15px; background:white; color:black; border:none; border-radius:12px; font-weight:800; cursor:pointer;">Se Connecter</button>
+            <p id="login-error" style="color:var(--urgent); font-size:0.8rem; margin-top:15px; display:none;">Email ou mot de passe incorrect.</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>Job Shift Tracker | <span style="color:var(--text-muted); font-weight:400;">Dashboard Recruteur</span></h1>
+            <div style="font-family:'JetBrains Mono'; font-size:0.85rem;"><span class="status-dot"></span> LIVE ENGINE ACTIVE</div>
+        </header>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="count-released">0</div>
+                <div class="stat-label">Postes Libérés (24h)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="count-critical">0</div>
+                <div class="stat-label">Profils Critiques</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">98%</div>
+                <div class="stat-label">Précision IA</div>
+            </div>
+        </div>
+
+        <div class="feed-container">
+            <div class="live-feed">
+                <div class="feed-header">
+                    <h3>Flux en Temps Réel</h3>
+                    <div style="color:var(--text-muted); font-size:0.8rem;">Filtrer par : <span style="color:var(--accent); cursor:pointer;">Tous les postes ▼</span></div>
+                </div>
+                <div id="job-feed">
+                    <!-- Les jobs apparaîtront ici -->
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <h3>Alertes Segmentées</h3>
+                <div style="margin-bottom:20px; font-size:0.9rem; line-height:1.6;">
+                    <p style="color:var(--urgent); font-weight:700;">● Remplacement Critique</p>
+                    <p>3 postes de Senior Dev libérés chez Amazon et Google.</p>
+                </div>
+                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.05); margin:20px 0;">
+                <h3>Analytics</h3>
+                <canvas id="analytics-chart" style="width:100%; height:150px; background:rgba(255,255,255,0.02); border-radius:8px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-toast" id="toast">
+        <strong id="toast-title">Alerte !</strong><br>
+        <span id="toast-msg"></span>
+    </div>
+
+    <script>
+        // Détection auto de l'URL du serveur (Local vs Prod)
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : 'https://votre-backend-sur-render.com'; // À changer après le déploiement sur Render
+
+        const socket = io(API_URL);
+        let releasedCount = 0;
+        let criticalCount = 0;
+        let authToken = localStorage.getItem('jobshift_token');
+
+        // GESTION DU LOGIN
+        document.getElementById('btn-login').onclick = async () => {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-pass').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('jobshift_token', authToken);
+                    document.getElementById('login-modal').style.display = 'none';
+                    loadHistory();
+                } else {
+                    document.getElementById('login-error').style.display = 'block';
+                }
+            } catch (err) {
+                alert("Serveur injoignable.");
+            }
+        };
+
+        // Si déjà connecté, cacher la modal
+        if (authToken) {
+            document.getElementById('login-modal').style.display = 'none';
+        }
+
+        // Fonction pour charger l'historique des postes libérés au démarrage
+        async function loadHistory() {
+            if (!authToken) return;
+            try {
+                const response = await fetch(`${API_URL}/api/released-jobs`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem('jobshift_token');
+                    location.reload();
+                    return;
+                }
+
+                const history = await response.json();
+                history.forEach(job => {
+                    addJobToFeed(job, true); 
+                    updateStats(job);
+                });
+            } catch (err) {
+                console.error("Erreur lors du chargement de l'historique:", err);
+            }
+        }
+
+        socket.on('job_released', (data) => {
+            console.log('Nouveau job libéré en direct:', data);
+            addJobToFeed(data);
+            showToast(data);
+            updateStats(data);
+        });
+
+        function addJobToFeed(job, isHistory = false) {
+            const feed = document.getElementById('job-feed');
+            const card = document.createElement('div');
+            const isCritical = job.title.toLowerCase().includes('senior') || job.title.toLowerCase().includes('lead') || job.isCritical;
+            
+            card.className = 'job-card' + (isCritical ? ' urgent' : '');
+            card.innerHTML = `
+                <div class="job-title">${job.title}</div>
+                <div class="job-company">${job.company}</div>
+                <div class="tags">
+                    <span class="tag">Poste Libéré</span>
+                    ${isCritical ? '<span class="tag tag-urgent">CRITIQUE</span>' : ''}
+                </div>
+                <div style="position:absolute; right:20px; top:20px; color:var(--text-muted); font-size:0.7rem;">
+                    ${isHistory ? 'Historique' : 'Maintenant'}
+                </div>
+            `;
+            feed.prepend(card);
+        }
+
+        function showToast(job) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = job.message;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 5000);
+        }
+
+        function updateStats(job) {
+            releasedCount++;
+            document.getElementById('count-released').innerText = releasedCount;
+            const isCritical = job.title.toLowerCase().includes('senior') || job.title.toLowerCase().includes('lead') || job.isCritical;
+            if(isCritical) {
+                criticalCount++;
+                document.getElementById('count-critical').innerText = criticalCount;
+            }
+        }
+
+        // Charger l'historique au lancement
+        loadHistory();
+    </script>
+</body>
+</html>

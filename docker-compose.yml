@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  jobshift-tracker:
+    build: .
+    container_name: jobshift_v1
+    restart: always
+    ports:
+      - "80:5000" # On expose directement sur le port 80 pour le web
+    volumes:
+      - ./backend/jobshift.db:/app/backend/jobshift.db # On persiste la base de données sur le serveur hôte
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=change-moi-pour-la-prod-2026
+      - PORT=5000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    name: jobshift_network
