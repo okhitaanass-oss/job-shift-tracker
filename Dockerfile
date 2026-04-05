@@ -1,27 +1,20 @@
-# Étape 1 : Build du Frontend
-FROM node:18-slim AS frontend-builder
-WORKDIR /app/frontend
-COPY frontend/ .
-# Pas de build nécessaire pour du HTML pur, mais on prépare la structure
+FROM node:18
 
-# Étape 2 : Build du Backend et Image Finale
-FROM node:18-slim
-WORKDIR /app
-
-# Installation des outils système nécessaires pour SQLite
+# Installation des outils de compilation pour SQLite
 RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
-# Copie des fichiers backend
+WORKDIR /app
+
+# Installation des dépendances backend
 COPY backend/package*.json ./backend/
 WORKDIR /app/backend
-RUN npm install --production
+RUN npm install && npm rebuild better-sqlite3
 
-# Copie du reste du code
-COPY backend/ . /app/backend/
-COPY --from=frontend-builder /app/frontend /app/frontend
+# Copie de tout le projet
+WORKDIR /app
+COPY . .
 
-# Exposition des ports (5000 pour l'API/Socket)
+# Lancement
+WORKDIR /app/backend
 EXPOSE 5000
-
-# Commande de lancement
 CMD ["node", "server.js"]
